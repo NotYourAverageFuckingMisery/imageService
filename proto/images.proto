@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package img;
+option go_package="./proto/v1"; 
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+message Info {
+    string ImageType = 1;
+    string ImageName = 2;
+}
+
+message UploadRequest {
+    oneof data {
+        Info ImageInfo = 1;
+        bytes Image = 2;
+    }
+}
+
+message DownloadRequest {
+    string Filename = 1;
+}
+
+message DownloadResponse {
+    oneof data {
+        Info Info = 1;
+        bytes Image = 2;
+    }
+}
+
+message ImageInfo {
+    string ImageName = 1;
+    google.protobuf.Timestamp CreatedAt = 2;
+    google.protobuf.Timestamp LastModified = 3;
+}
+
+message GetImageListResponse { 
+    repeated ImageInfo ImageList = 1;
+}
+
+service TransferImageService {
+    rpc Upload(stream UploadRequest) returns (google.protobuf.Empty);
+    rpc Download(DownloadRequest) returns (stream DownloadResponse);
+}
+
+service ImageInfoService {
+    rpc GetImageList(google.protobuf.Empty) returns (stream GetImageListResponse);
+}
