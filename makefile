@@ -6,3 +6,10 @@ local:
 	
 client:
 	go run client/main.go
+
+prof_cmd:
+	go build ./cmd/main.go
+	./main -cpuprofile=main.prof
+
+pprof_cmd:
+	go tool pprof main main.prof

@@ -1,9 +1,7 @@
 package service
 
 import (
-	"bufio"
 	"bytes"
-	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -27,22 +25,17 @@ func (s *TransferImageServer) Upload(stream v1.TransferImageService_UploadServer
 	}
 	imageName := req.GetImageInfo().ImageName
 	imageData := bytes.Buffer{}
-	log.Println("Geting image data...")
-	for {
 
-		req, err := stream.Recv()
-		if err == io.EOF {
-			log.Print("no more data")
-			break
-		}
-		if err != nil {
-			return genErr.NewError(err, genErr.ErrRecievingChunkData)
-		}
-		chunk := req.GetImage()
-		_, err = imageData.Write(chunk)
-		if err != nil {
-			return genErr.NewError(err, genErr.ErrWritingChunkData)
-		}
+	log.Println("Geting image data...")
+
+	req, err = stream.Recv()
+	if err != nil {
+		return genErr.NewError(err, genErr.ErrRecievingData)
+	}
+	bytes := req.GetImage()
+	_, err = imageData.Write(bytes)
+	if err != nil {
+		return genErr.NewError(err, genErr.ErrWritingData)
 	}
 
 	err = s.Save(imageName, imageData)
@@ -82,27 +75,19 @@ func (s *TransferImageServer) Download(req *v1.DownloadRequest, stream v1.Transf
 		return genErr.NewError(err, genErr.ErrSendingImage)
 	}
 
-	reader := bufio.NewReader(file)
-	buffer := make([]byte, 1024)
+	bytes, err := os.ReadFile(s.ImageFolder + "/" + req.Filename)
+	if err != nil {
+		return genErr.NewError(err, genErr.ErrReadingFile)
+	}
 
-	for {
-		n, err := reader.Read(buffer)
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return genErr.NewError(err, genErr.ErrReadingChunk)
-		}
-
-		res := &v1.DownloadResponse{
-			Data: &v1.DownloadResponse_Image{
-				Image: buffer[:n],
-			},
-		}
-		err = stream.Send(res)
-		if err != nil {
-			return genErr.NewError(err, genErr.ErrSendingChunkData)
-		}
+	res = &v1.DownloadResponse{
+		Data: &v1.DownloadResponse_Image{
+			Image: bytes,
+		},
+	}
+	err = stream.Send(res)
+	if err != nil {
+		return genErr.NewError(err, genErr.ErrSendingData)
 	}
 
 	log.Println("Download completed")

@@ -1,11 +1,9 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -83,26 +81,18 @@ func upload(client v1.TransferImageServiceClient, imagePath string) {
 		log.Fatal("cannot send image info to server: ", err, stream.RecvMsg(nil))
 	}
 
-	reader := bufio.NewReader(file)
-	buffer := make([]byte, 1024)
-
-	for {
-		n, err := reader.Read(buffer)
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			log.Fatal("cannot read chunk to buffer: ", err)
-		}
-		req := &v1.UploadRequest{
-			Data: &v1.UploadRequest_Image{
-				Image: buffer[:n],
-			},
-		}
-		err = stream.Send(req)
-		if err != nil {
-			log.Fatal("cannot send chunk to server: ", err)
-		}
+	bytes, err := os.ReadFile(imagePath)
+	if err != nil {
+		log.Fatal("can not read file")
+	}
+	req = &v1.UploadRequest{
+		Data: &v1.UploadRequest_Image{
+			Image: bytes,
+		},
+	}
+	err = stream.Send(req)
+	if err != nil {
+		log.Fatal("cannot send chunk to server: ", err)
 	}
 
 	_, err = stream.CloseAndRecv()
@@ -131,20 +121,15 @@ func download(client v1.TransferImageServiceClient, imagePath string) {
 	imageData := bytes.Buffer{}
 
 	log.Println("Geting image data...")
-	for {
-		req, err := stream.Recv()
-		if err == io.EOF {
-			log.Print("no more data")
-			break
-		}
-		if err != nil {
-			log.Fatal("Can not recive chunk data")
-		}
-		chunk := req.GetImage()
-		_, err = imageData.Write(chunk)
-		if err != nil {
-			log.Fatal("Can not write chunk data")
-		}
+
+	req, err = stream.Recv()
+	if err != nil {
+		log.Fatal("Can not recive data")
+	}
+	chunk := req.GetImage()
+	_, err = imageData.Write(chunk)
+	if err != nil {
+		log.Fatal("Can not write data")
 	}
 
 	err = stream.CloseSend()
@@ -175,19 +160,23 @@ func main() {
 	}
 	c2 := v1.NewImageInfoServiceClient(conn2)
 	wg := sync.WaitGroup{}
-	wg.Add(2)
-	t := time.Now()
-	go func() {
-		upload(c, "client/img/20-facts-might-know-bad-santa.jpg")
-		wg.Done()
-	}()
-	go func() {
-		download(c, "client/img/")
-		wg.Done()
-	}()
-	go func() {
-		getInfo(c2)
-	}()
-	wg.Wait()
-	fmt.Println(time.Since(t))
+	for {
+		time.Sleep(10 * time.Millisecond)
+		wg.Add(3)
+		//t := time.Now()
+		go func() {
+			upload(c, "client/img/20-facts-might-know-bad-santa.jpg")
+			wg.Done()
+		}()
+		go func() {
+			download(c, "client/img/")
+			wg.Done()
+		}()
+		go func() {
+			getInfo(c2)
+			wg.Done()
+		}()
+	}
+	//wg.Wait()
+	//fmt.Println(time.Since(t))
 }
